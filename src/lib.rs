@@ -5,7 +5,8 @@ mod kvs;
 pub use kvs::KvStore;
 
 extern crate failure;
-#[macro_use] extern crate failure_derive;
+#[macro_use]
+extern crate failure_derive;
 extern crate serde;
 mod error;
 pub use error::Result;

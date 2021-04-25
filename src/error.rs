@@ -1,14 +1,13 @@
 use failure::Error;
-use std::io;
 use serde;
 use serde_json;
+use std::io;
 
 /**
  * custom error type to indicate different error
  */
 #[derive(Fail, Debug)]
 pub enum KvError {
-
     #[fail(display = "{}", _0)]
     Io(#[cause] io::Error),
 
@@ -19,7 +18,7 @@ pub enum KvError {
     KeyNotFound,
 
     #[fail(display = "Invalid command")]
-    InvalidCommand
+    InvalidCommand,
 }
 
 pub type Result<T> = std::result::Result<T, KvError>;
