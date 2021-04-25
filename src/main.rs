@@ -1,8 +1,3 @@
-extern crate clap;
-
-#[macro_use]
-extern crate structopt;
-
 use clap::{Arg, App, SubCommand, AppSettings};
 use std::process::exit;
 use structopt::StructOpt;

@@ -1,9 +1,15 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
+use serde::{Serialize, Deserialize};
 
 pub struct KvStore {
     values: HashMap<String, String>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+enum Command {
+    Set { key: String, value: String},
+}
 
 impl KvStore {
     pub fn new() -> KvStore {
@@ -26,4 +32,8 @@ impl KvStore {
     pub fn remove(&mut self, key: String) {
         self.values.remove(&key);
     }
+
+    // pub fn open(path: impl Into<PathBuf>) -> KvStore {
+        
+    // }
 }
