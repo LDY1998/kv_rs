@@ -21,4 +21,16 @@ pub enum KvError {
     InvalidCommand,
 }
 
+impl From<io::Error> for KvError {
+    fn from(e: io::Error) -> KvError {
+        KvError::Io(e)
+    }
+}
+
+impl From<serde_json::Error> for KvError {
+    fn from(e: serde_json::Error) -> KvError {
+        KvError::Serde(e)
+    }
+}
+
 pub type Result<T> = std::result::Result<T, KvError>;
