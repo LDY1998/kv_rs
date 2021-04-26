@@ -4,6 +4,7 @@ use predicates::ord::eq;
 use predicates::str::{contains, PredicateStrExt, is_empty};
 use std::process::Command;
 use tempfile::TempDir;
+use walkdir::WalkDir;
 
 // `kvs` with no args should exit with a non-zero code.
 #[test]
