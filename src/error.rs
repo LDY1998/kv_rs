@@ -1,7 +1,5 @@
-use failure::Error;
-use serde;
-use serde_json;
 use std::io;
+use failure_derive::Fail;
 
 /**
  * custom error type to indicate different error

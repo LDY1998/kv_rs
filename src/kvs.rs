@@ -16,12 +16,14 @@ pub struct KvStore {
     curr_gen: u64,
 }
 
+#[derive(Debug)]
 struct CommandPos {
     gen: u64,
     pos: u64,
     len: u64,
 }
 
+#[derive(Debug)]
 struct BufWriterWithPos {
     writer: BufWriter<File>,
     pos: u64,
@@ -37,18 +39,16 @@ impl BufWriterWithPos {
     }
 }
 
+#[derive(Debug)]
 struct BufReaderWithPos {
     reader: BufReader<File>,
     pos: u64,
 }
 
 impl BufReaderWithPos {
-    fn new(mut inner: BufReader<File>) -> Result<Self> {
-        let pos = inner.seek(SeekFrom::Current(0))?;
-        Ok(BufReaderWithPos {
-            reader: inner,
-            pos: pos,
-        })
+    fn new(mut reader: BufReader<File>) -> Result<Self> {
+        let pos = reader.seek(SeekFrom::Current(0))?;
+        Ok(BufReaderWithPos { reader, pos })
     }
 }
 
@@ -122,7 +122,8 @@ impl KvStore {
                 Err(KvError::InvalidCommand)
             }
         } else {
-            Err(KvError::KeyNotFound)
+            // Err(KvError::KeyNotFound)
+            Ok(None)
         }
     }
 
@@ -135,7 +136,7 @@ impl KvStore {
     pub fn set(&mut self, key: String, value: String) -> Result<()> {
         let cmd = Command::Set {
             key: key.clone(),
-            value: value,
+            value,
         };
 
         let pos = self.writer.pos;
@@ -149,7 +150,7 @@ impl KvStore {
             key,
             CommandPos {
                 gen: self.curr_gen,
-                pos: self.writer.pos,
+                pos,
                 len: self.writer.pos - pos,
             },
         );
@@ -163,7 +164,7 @@ impl KvStore {
      * ! 2. if the log with the key presents, serialize the
      */
     pub fn remove(&mut self, key: String) -> Result<()> {
-        if let Some(pos) = self.index.get(&key) {
+        if let Some(_pos) = self.index.get(&key) {
             let cmd = Command::Remove { key: key.clone() };
             serde_json::to_writer(&mut self.writer, &cmd)?;
             self.writer.flush()?;
@@ -178,7 +179,12 @@ impl KvStore {
 
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
         let path = path.into();
-        std::fs::create_dir_all(&path)?;
+
+        // let path = path.join(Path::new("/store_logs"));
+
+        if std::fs::metadata(&path).is_err() {
+            std::fs::create_dir_all(&path)?;
+        }
 
         let mut readers = HashMap::new();
         let mut index = BTreeMap::new();
@@ -186,21 +192,21 @@ impl KvStore {
         let gens = read_gens(&path)?;
 
         for &gen in &gens {
-            let log_p = log_path(&path, gen)?;
+            let log_p = log_path(&path, gen);
             let mut reader = BufReaderWithPos::new(BufReader::new(File::open(&log_p)?))?;
             load(gen, &mut reader, &mut index)?;
             readers.insert(gen, reader);
         }
 
-        let current_gen = gens.last().unwrap_or(&0) + 1;
+        let curr_gen = gens.last().unwrap_or(&0) + 1;
 
-        let writer = new_log_file(&path, current_gen, &mut readers)?;
+        let writer = new_log_file(&path, curr_gen, &mut readers)?;
 
         Ok(KvStore {
-            writer: writer,
-            readers: readers,
-            index: index,
-            curr_gen: 0,
+            writer,
+            readers,
+            index,
+            curr_gen,
         })
     }
 }
@@ -210,7 +216,7 @@ fn new_log_file(
     gen: u64,
     readers: &mut HashMap<u64, BufReaderWithPos>,
 ) -> Result<BufWriterWithPos> {
-    let path = log_path(&path, gen)?;
+    let path = log_path(&path, gen);
     let writer = BufWriterWithPos::new(BufWriter::new(
         OpenOptions::new()
             .create(true)
@@ -218,12 +224,15 @@ fn new_log_file(
             .append(true)
             .open(&path)?,
     ));
-    readers.insert(gen, BufReaderWithPos::new(BufReader::new(File::open(&path)?))?);
+    readers.insert(
+        gen,
+        BufReaderWithPos::new(BufReader::new(File::open(&path)?))?,
+    );
     writer
 }
 
-fn log_path(path: &Path, gen: u64) -> Result<PathBuf> {
-    Ok(path.join(format!("{}.log", gen)))
+fn log_path(path: &Path, gen: u64) -> PathBuf {
+    path.join(format!("{}.log", gen))
 }
 
 fn read_gens(path: &Path) -> Result<Vec<u64>> {
@@ -262,15 +271,18 @@ fn load(
     while let Some(cmd) = stream.next() {
         let new_pos = stream.byte_offset() as u64;
         match cmd? {
-            Command::Set { key, .. } | Command::Remove { key, .. } => {
+            Command::Set { key, .. } => {
                 index.insert(
                     key,
                     CommandPos {
-                        gen: gen,
-                        pos: pos,
+                        gen,
+                        pos,
                         len: new_pos - pos,
                     },
                 );
+            }
+            Command::Remove { key, .. } => {
+                index.remove(&key).unwrap();
             }
         }
         pos = new_pos;

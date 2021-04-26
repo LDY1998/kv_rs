@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use kv::{KvStore, Result};
 use predicates::ord::eq;
-use predicates::str::{contains, PredicateStrExt, is_empty};
+use predicates::str::{contains, is_empty, PredicateStrExt};
 use std::process::Command;
 use tempfile::TempDir;
 use walkdir::WalkDir;
@@ -9,14 +9,21 @@ use walkdir::WalkDir;
 // `kvs` with no args should exit with a non-zero code.
 #[test]
 fn cli_no_args() {
-    Command::cargo_bin("kv").unwrap().assert().failure();
+    let tmp = TempDir::new().unwrap();
+    Command::cargo_bin("kv")
+        .unwrap()
+        .current_dir(&tmp)
+        .assert()
+        .failure();
 }
 
 // `kvs -V` should print the version
 #[test]
 fn cli_version() {
+    let tmp = TempDir::new().unwrap();
     Command::cargo_bin("kv")
         .unwrap()
+        .current_dir(&tmp)
         .args(&["-V"])
         .assert()
         .stdout(contains(env!("CARGO_PKG_VERSION")));
@@ -24,8 +31,10 @@ fn cli_version() {
 
 #[test]
 fn cli_invalid_subcommand() {
+    let tmp = TempDir::new().unwrap();
     Command::cargo_bin("kv")
         .unwrap()
+        .current_dir(&tmp)
         .args(&["unknown", "subcommand"])
         .assert()
         .failure();
@@ -128,14 +137,17 @@ fn cli_rm_stored() -> Result<()> {
 
 #[test]
 fn cli_invalid_get() {
+    let tmp = TempDir::new().unwrap();
     Command::cargo_bin("kv")
         .unwrap()
+        .current_dir(&tmp)
         .args(&["get"])
         .assert()
         .failure();
 
     Command::cargo_bin("kv")
         .unwrap()
+        .current_dir(&tmp)
         .args(&["get", "extra", "field"])
         .assert()
         .failure();
@@ -143,20 +155,24 @@ fn cli_invalid_get() {
 
 #[test]
 fn cli_invalid_set() {
+    let tmp = TempDir::new().unwrap();
     Command::cargo_bin("kv")
         .unwrap()
+        .current_dir(&tmp)
         .args(&["set"])
         .assert()
         .failure();
 
     Command::cargo_bin("kv")
         .unwrap()
+        .current_dir(&tmp)
         .args(&["set", "missing_field"])
         .assert()
         .failure();
 
     Command::cargo_bin("kv")
         .unwrap()
+        .current_dir(&tmp)
         .args(&["set", "extra", "extra", "field"])
         .assert()
         .failure();
@@ -164,14 +180,17 @@ fn cli_invalid_set() {
 
 #[test]
 fn cli_invalid_rm() {
+    let tmp = TempDir::new().unwrap();
     Command::cargo_bin("kv")
         .unwrap()
+        .current_dir(&tmp)
         .args(&["rm"])
         .assert()
         .failure();
 
     Command::cargo_bin("kv")
         .unwrap()
+        .current_dir(&tmp)
         .args(&["rm", "extra", "field"])
         .assert()
         .failure();

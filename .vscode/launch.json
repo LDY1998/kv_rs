@@ -5,12 +5,22 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(OSX) Launch",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceRoot}/target/debug/kv",
+            "name": "Debug tests",
+            "program": "${workspaceRoot}/target/debug/deps/${workspaceRootFolderName}",
             "args": [],
-            "cwd": "${workspaceRoot}",
+            "cwd": "${workspaceRoot}/target/debug/",
+            "sourceLanguages": ["rust"]
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug",
+            "program": "${workspaceRoot}/target/debug/${workspaceRootFolderName}",
+            "args": [],
+            "cwd": "${workspaceRoot}/target/debug/",
+            "sourceLanguages": ["rust"]
         },
         {
             "type": "lldb",
@@ -19,16 +29,20 @@
             "cargo": {
                 "args": [
                     "test",
-                    "--no-run",
+                    // "--no-run",
                     "--lib",
-                    "--package=kv"
+                    "--package=kv",
+                    "--exact",
+                    "--nocapture"
                 ],
                 "filter": {
                     "name": "kv",
                     "kind": "lib"
                 }
             },
-            "args": ["get_stored_value"],
+            "program": "${cargo:program}",
+            "sourceMap":{},
+            "args": [],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -46,6 +60,7 @@
                     "kind": "bin"
                 }
             },
+            "sourceMap":{},
             "args": [],
             "cwd": "${workspaceFolder}"
         },
@@ -56,7 +71,7 @@
             "cargo": {
                 "args": [
                     "test",
-                    // "--no-run",
+                    "--no-run",
                     "--bin=kv",
                     "--package=kv"
                 ],
@@ -65,7 +80,9 @@
                     "kind": "bin"
                 }
             },
-            "args": ["get_stored_value"],
+            "sourceMap":{},
+            "args": [],
+            "program": "${cargo:program}",
             "cwd": "${workspaceFolder}"
         },
         {
