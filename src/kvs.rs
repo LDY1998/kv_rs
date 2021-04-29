@@ -9,14 +9,18 @@ use std::io;
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
+const COMPACTION_THRESHOLD: u64 = 1024 * 1024;
+
 pub struct KvStore {
     writer: BufWriterWithPos,
     index: BTreeMap<String, CommandPos>,
     readers: HashMap<u64, BufReaderWithPos>,
     curr_gen: u64,
+    compaction: u64,
+    path: PathBuf,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct CommandPos {
     gen: u64,
     pos: u64,
@@ -107,7 +111,6 @@ impl KvStore {
      * ! 6. deserialize with serde::from_reader, return the value
      */
     pub fn get(&mut self, key: String) -> Result<Option<String>> {
-        // TODO: read entire log and build the index
 
         if let Some(pos) = self.index.get(&key) {
             let reader = self
@@ -155,12 +158,18 @@ impl KvStore {
             },
         );
 
+        self.compaction += self.writer.pos - pos;
+
+        if self.compaction >= COMPACTION_THRESHOLD {
+            self.compaction()?;
+        }
+
         Ok(())
     }
 
     /**
-     * ! impl {kv remove key}
-     * ! 1. read the log and build index
+     * ! impl {kv remove key}\n
+     * ! 1. read the log and build index\n
      * ! 2. if the log with the key presents, serialize the
      */
     pub fn remove(&mut self, key: String) -> Result<()> {
@@ -207,7 +216,65 @@ impl KvStore {
             readers,
             index,
             curr_gen,
+            compaction: 0,
+            path,
         })
+    }
+
+    /**
+     * ! implement compaction
+     * * if multiple set is applied on same key, we only keep the latest set
+     * * we traverse index map since it contains key and its latest values
+     * * simply write all the value in the index to a new log file
+     * * then remove all the log files that has gen less than the latest one with compaction content
+     * ! remember to update writer in KvStore to avoid position mismatch
+     */
+    pub fn compaction(&mut self) -> Result<()> {
+        let compaction_gen = self.curr_gen + 1;
+        self.curr_gen += 2;
+        let mut compact_writer = new_log_file(&self.path, compaction_gen, &mut self.readers)?;
+        let mut curr_pos = 0;
+        self.writer = new_log_file(&self.path, self.curr_gen, &mut self.readers)?;
+
+        println!("index before 27: {:?}", self.index.get("key27"));
+        for cmd_pos in &mut self.index.values_mut() {
+            let reader = self
+                .readers
+                .get_mut(&cmd_pos.gen)
+                .expect("cannot find the reader");
+            if reader.pos != cmd_pos.pos {
+                reader.seek(SeekFrom::Start(cmd_pos.pos))?;
+            }
+            let mut reader = reader.take(cmd_pos.len);
+            let len = io::copy(&mut reader, &mut compact_writer)?;
+            *cmd_pos = CommandPos {
+                gen: compaction_gen,
+                pos: curr_pos,
+                len,
+            };
+
+            curr_pos += len;
+        }
+
+        compact_writer.flush()?;
+
+        let stale_gens: Vec<_> = self
+            .readers
+            .keys()
+            .filter(|&gen| gen < &compaction_gen)
+            .cloned()
+            .collect();
+
+        for stale_gen in stale_gens {
+            self.readers.remove(&stale_gen).expect("the gen is removed");
+            std::fs::remove_file(Path::join(&self.path, &format!("{}.log", stale_gen)))?;
+        }
+
+        println!("index for 27: {:?}", self.index.get("key27"));
+
+        self.compaction = 0;
+
+        Ok(())
     }
 }
 
